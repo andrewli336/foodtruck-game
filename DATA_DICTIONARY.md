@@ -223,3 +223,46 @@ All park indices are the **underlying** index 0-2, never the display position.
 **Integrity checks (v2.1):** propensities of all possible shown outcomes sum to 1; `followed` non-null iff
 `shown_rec` non-null; `shown_rec` never a full park; no `leave` tip at `h = 0`; Days 7-8 `surge_draw` equal
 Days 1-2 for the same participant; replaying seed + actions reproduces every `state`.
+
+### v2.1 fields added by `q8_v2_1.js` (not listed above)
+
+Decision record:
+
+| Field | Type | Description |
+|---|---|---|
+| `participant_id`, `session_seed`, `game_version`, `config_hash` | | Identity fields from §1.1, repeated on every decision record (also stored once at the top of the export) |
+| `arm_source` | string | `embedded_data`, `fallback` (arm missing, picked as `"ABCD"[seed % 4]`), or `debug` (forced via `debug_arm`) |
+| `advice_shown` | bool | `shown_rec !== null` |
+| `scored` | bool | `CONFIG.SCORED[day_index]`; false only on Practice |
+| `advisor_on` | bool | `CONFIG.ADVISOR_ON[day_index]`; true on Days 3-6 |
+| `surprise_asked` | bool | Whether the surprise question was shown this hour (only possible when a tip was shown) |
+| `surprise_draw` | float\|null | Uniform draw deciding `surprise_asked` (`< ELICIT_SURPRISE_PROB`). Seeded: `makeRNG(hashString(seed + "\|surprise\|" + day_index + "\|" + h))()` |
+| `post_choice_thumbs` | `"up"`/`"down"`/null | Thumbs rating of the tip, asked after the park click and before serving; only when a tip was shown |
+| `rt_thumbs_ms` | int\|null | From thumbs prompt shown to rating |
+| `news_shown` | bool | Whether the surprise-crowd news line was shown after this hour (surge happened and not the last hour) |
+| `rt_continue_ms` | int\|null | Time to click "Choose Next Stop" after the hour. Null on hour 5 (see `day_end.rt_continue_ms`) |
+| `t` | int | Timestamp when the choice screen was shown |
+
+The advisor's `rng` for `FT.advisorDecision` is `makeRNG(hashString(seed + "|advisor|" + day_index + "|" + h))`, a
+separate stream per decision. `rng_call_count` / `rng_call_count_end` (§1.4) are therefore not logged: replay only
+needs the seed, day, and hour.
+
+Events (§2 types not used in v2.1: memory, stuck/forced-stay, `round_complete`, `summary_shown`/`summary_continue`):
+
+| `type` | Emitted when | Key fields |
+|---|---|---|
+| `run_start` | Game loads | `t` |
+| `page_reload_detected` | Game loads again in the same browser tab | `prior_day_index`, `prior_hour`, `prior_status`, `prior_t`, `reload_count` |
+| `day_start` | Each day begins | `day_index`, `day_label`, `problem_id`, `block`, `is_mirror_day`, `park_label_map` |
+| `transition_shown` / `transition_continue` | Practice intro, practice over, advisor intro (Day 3), advisor offline (Day 7) | `day_index`, `kind`, `rt_ms` |
+| `decision` | Each decision | see above |
+| `tip_shown` | Advisor box displayed | `decision_index`, `shown_rec`, `text` (exact wording shown), `surprise_asked` |
+| `surprise_rated` | Surprise question answered | `decision_index`, `rating` (1-4), `rt_ms` |
+| `choose_park` | Park clicked | `decision_index`, `action`, `display_slot` (on-screen position 0-2) |
+| `tip_rating` | Thumbs answered | `decision_index`, `rating`, `rt_ms` |
+| `day_end` | End-of-day Continue clicked | `day_index`, `day_earned`, `total_profit`, `practice_profit`, `trust_slider`, `rt_trust_ms`, `rt_continue_ms` |
+| `debug_jump` | Debug-mode day jump (Shift+0-8) | `from_day_index`, `to_day_index` |
+| `session_complete` | Finish clicked | `total_profit`, `session_duration_ms` |
+
+Embedded data added: `foodtruck_reload_count` (times the game reloaded mid-session), `debug_arm` (read only, and
+only when `debug_mode=1`: forces the arm for testing). Both must be declared in the survey flow.
