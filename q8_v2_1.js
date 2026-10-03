@@ -341,7 +341,15 @@ Qualtrics.SurveyEngine.addOnload(function () {
     this.getQuestionContainer().appendChild(root);
   }
   root.innerHTML = "";
-  root.style.cssText = "max-width:960px;margin:0 auto;padding:0;background:#FFFFFF;";
+  root.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483000;margin:0;padding:0;background:#FFFFFF;";
+  root.classList.add("ft-fullscreen");
+  var prevBodyOverflow = document.body ? document.body.style.overflow : "";
+  if (document.body) document.body.style.overflow = "hidden";
+  function releaseFullScreen() {
+    root.style.cssText = "max-width:960px;margin:0 auto;padding:0;background:#FFFFFF;";
+    root.classList.remove("ft-fullscreen");
+    if (document.body) document.body.style.overflow = prevBodyOverflow;
+  }
 
   // =========================================================
   // CONSTANTS
@@ -423,7 +431,7 @@ Qualtrics.SurveyEngine.addOnload(function () {
   var game = {
     pid: "", seed: null, arm: null, armSource: null,
     dayIndex: 0, st: null, parent: null, labelMap: [0, 1, 2],
-    totalProfit: 0, practiceProfit: 0, dayEarned: 0,
+    totalProfit: 0, practiceProfit: 0, dayEarned: 0, dayHours: [],
     decisionIndex: 0, pending: null, busy: false, finished: false, reloads: 0,
     sessionStartTs: Date.now()
   };
@@ -476,6 +484,9 @@ Qualtrics.SurveyEngine.addOnload(function () {
       '#foodtruck-root, #foodtruck-root * { font-family:"Inter",sans-serif; }',
       '#foodtruck-root #foodtruck-app { --park-accent:#BDBDBD; --action-color:#FF9800; background:#FFFFFF; color:#121212; display:flex; flex-direction:column; height:100vh; max-height:100vh; overflow:hidden; }',
       '#foodtruck-root .no-display { display:none !important; }',
+      /* Wide screens: keep the game in a centered column instead of stretching edge to edge */
+      '#foodtruck-root #foodtruck-app { width:100%; max-width:640px; margin:0 auto; }',
+      '@media (min-width:700px) { #foodtruck-root.ft-fullscreen { background:#F2F3F5 !important; } #foodtruck-root #foodtruck-app { border-left:1px solid #E4E4E4; border-right:1px solid #E4E4E4; box-shadow:0 0 24px rgba(0,0,0,0.06); } }',
 
       /* === COMPACT BANNER === */
       '#foodtruck-root #main-banner { background:#FFFFFF; border-bottom:3px solid var(--park-accent); padding:6px 12px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; flex-shrink:0; }',
@@ -487,11 +498,10 @@ Qualtrics.SurveyEngine.addOnload(function () {
       '#foodtruck-root #expected-wrap { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }',
       '#foodtruck-root #expected-pill { display:inline-flex; align-items:center; padding:3px 7px; border-radius:8px; border:1px solid rgba(46,173,76,0.25); background:#EFF9F1; color:#197A32; font-size:11px; font-weight:800; white-space:nowrap; }',
       '#foodtruck-root #park-status { justify-self:center; display:flex; flex-direction:column; align-items:center; text-align:center; }',
+      '#foodtruck-root #park-stats { margin-top:3px; font-size:13px; font-weight:700; color:#555; white-space:nowrap; }',
       '#foodtruck-root #park-row { display:flex; align-items:center; justify-content:center; gap:5px; }',
       '#foodtruck-root #park-chip { width:26px; height:26px; border-radius:999px; display:flex; align-items:center; justify-content:center; color:#FFF; background:#9E9E9E; font-size:13px; font-weight:900; flex-shrink:0; }',
       '#foodtruck-root #current-park { margin:0; font-size:18px; font-weight:800; line-height:1; color:#121212; }',
-      '#foodtruck-root #metrics-row { margin-top:2px; display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; }',
-      '#foodtruck-root .metric-inline { font-size:13px; font-weight:700; color:#444; white-space:nowrap; }',
       '#foodtruck-root #time-indicator { justify-self:end; }',
       '#foodtruck-root #time-row { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:nowrap; }',
       '#foodtruck-root .time-inline { font-size:14px; font-weight:700; color:#444; white-space:nowrap; }',
@@ -500,7 +510,7 @@ Qualtrics.SurveyEngine.addOnload(function () {
       /* === SCROLLABLE MAIN === */
       '#foodtruck-root main { flex:1; overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column; }',
       '#foodtruck-root #map { padding:10px 12px 6px; flex:1; }',
-      '#foodtruck-root #map-inner { background:#FFFFFF; border:none; border-top:3px solid var(--park-accent); padding:10px 12px; }',
+      '#foodtruck-root #map-inner { background:#FFFFFF; border:none; padding:10px 12px; }',
       '#foodtruck-root #map-header { margin:0 0 8px; font-size:16px; font-weight:800; color:#111; line-height:1.15; border-left:3px solid var(--park-accent); padding-left:8px; }',
 
       /* === TIP PANEL === */
@@ -564,15 +574,39 @@ Qualtrics.SurveyEngine.addOnload(function () {
       /* === SERVING === */
       '#foodtruck-root #serving-box { background:#FFFFFF; border:2px solid var(--park-accent); border-radius:12px; padding:10px; margin-top:4px; display:flex; flex-direction:column; gap:8px; }',
       '#foodtruck-root .serving-status { font-size:18px; font-weight:800; color:#161616; text-align:center; }',
-      '#foodtruck-root .serving-row { display:flex; align-items:center; flex-wrap:wrap; gap:3px; min-height:24px; }',
-      '#foodtruck-root .serving-row-label { font-size:11px; font-weight:700; color:#757575; margin-right:6px; }',
-      '#foodtruck-root .serving-icon { font-size:18px; line-height:1; }',
-      '#foodtruck-root .serving-badge { margin-left:6px; padding:2px 8px; border-radius:999px; background:#FDF0EB; color:#C8460A; font-size:11px; font-weight:800; }',
       '#foodtruck-root .serving-coins { font-size:26px; font-weight:900; color:#2EAD4C; text-align:center; }',
+      '#foodtruck-root .serve-done { font-size:44px; line-height:1; }',
+      '#foodtruck-root .serve-badge { align-self:center; background:#FFE4C2; color:#9A4A00; font-size:12px; font-weight:900; padding:3px 10px; border-radius:999px; }',
+      '#foodtruck-root .serve-queue { display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-end; gap:4px; min-height:72px; }',
+      '#foodtruck-root .serve-waiting { opacity:0.4; }',
+      '#foodtruck-root .serve-cust { font-size:24px; opacity:0.6; line-height:1; }',
+      '#foodtruck-root .serve-front { font-size:34px; opacity:1; display:flex; flex-direction:column; align-items:center; gap:2px; transition:transform 0.15s, opacity 0.15s; }',
+      '#foodtruck-root .serve-bubble { font-size:26px; background:#FFFFFF; border:2px solid #222; border-radius:14px; padding:2px 8px; }',
+      '#foodtruck-root .serve-leave { transform:translateX(-24px); opacity:0; }',
+      '#foodtruck-root .serve-shake { animation:serveShake 0.3s; }',
+      '@keyframes serveShake { 0%,100% { transform:translateX(0); } 25% { transform:translateX(-6px); } 75% { transform:translateX(6px); } }',
+      '#foodtruck-root .serve-msg { min-height:20px; text-align:center; font-size:14px; font-weight:800; color:#555; }',
+      '#foodtruck-root .serve-good { color:#2EAD4C; }',
+      '#foodtruck-root .serve-bad { color:#D32F2F; }',
+      '#foodtruck-root .serve-counter { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; }',
+      '#foodtruck-root .serve-food { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 2px; border:2px solid #DDDDDD; border-radius:12px; background:#FAFAFA; cursor:pointer; touch-action:manipulation; font-family:"Inter",sans-serif; }',
+      '#foodtruck-root .serve-food:not(:disabled):active { border-color:var(--park-accent); background:#F0F0F0; }',
+      '#foodtruck-root .serve-food:disabled { opacity:0.4; cursor:not-allowed; }',
+      '#foodtruck-root .serve-food-icon { font-size:26px; line-height:1; }',
+      '#foodtruck-root .serve-food-name { font-size:11px; white-space:nowrap; font-weight:700; color:#555; }',
+      '#foodtruck-root .serve-progress { text-align:center; font-size:13px; font-weight:700; color:#757575; }',
+      '@media (prefers-reduced-motion: reduce) { #foodtruck-root .serve-shake { animation:none; } #foodtruck-root .serve-front { transition:none; } }',
 
       /* === SUMMARY === */
       '#foodtruck-root #round-summary-box { background:#FFFFFF; border:1px solid #E4E4E4; border-left:4px solid var(--park-accent); border-radius:10px; padding:10px; margin-top:8px; }',
       '#foodtruck-root .summary-text { margin:0 0 8px; font-size:14px; line-height:1.4; color:#1F1F1F; }',
+      '#foodtruck-root .day-list { display:flex; flex-direction:column; gap:4px; margin:0 0 6px; }',
+      '#foodtruck-root .day-row { display:grid; grid-template-columns:64px 1fr auto; align-items:baseline; gap:8px; font-size:14px; color:#1F1F1F; }',
+      '#foodtruck-root .day-hour { font-weight:700; color:#757575; }',
+      '#foodtruck-root .day-amount { font-weight:800; text-align:right; white-space:nowrap; }',
+      '#foodtruck-root .day-total { display:flex; justify-content:space-between; border-top:1px solid #E4E4E4; padding-top:6px; margin-bottom:8px; font-size:16px; font-weight:900; color:#111; }',
+      '#foodtruck-root .arrival-title { margin:0 0 6px; font-size:16px; font-weight:800; color:#111; }',
+      '#foodtruck-root .arrival-stat { margin:0 0 4px; font-size:15px; font-weight:700; color:#333; }',
       '#foodtruck-root .trust-wrap { margin:4px 0 8px; }',
       '#foodtruck-root .trust-wrap input[type=range] { width:100%; }',
       '#foodtruck-root .trust-value { font-size:14px; font-weight:800; color:#333; text-align:center; }',
@@ -592,7 +626,8 @@ Qualtrics.SurveyEngine.addOnload(function () {
     '<span id="expected-wrap" class="no-display"><span id="expected-pill">EST. $0</span></span>',
     '</div></div>',
     '<div id="park-status"><div id="park-row"><div id="park-chip">\u2022</div><h1 id="current-park">Base</h1></div>',
-    '<div id="metrics-row"><span id="number-of-people" class="metric-inline"></span><span id="number-of-food-trucks" class="metric-inline"></span></div></div>',
+    '<div id="park-stats" class="no-display"></div>',
+    '</div>',
     '<div id="time-indicator"><div id="time-row">',
     '<span id="day-inline" class="time-inline">Day <strong id="current-day">1</strong>/<strong id="final-day">8</strong></span>',
     '<span class="time-inline">Hour <strong id="current-hour-display">1</strong>/<strong id="final-hour">5</strong></span>',
@@ -629,18 +664,15 @@ Qualtrics.SurveyEngine.addOnload(function () {
     setText("profit-label", scored ? "Earnings" : "Practice earnings");
     setText("current-profit", String(scored ? game.totalProfit : game.practiceProfit));
   }
-  function setParkHud(u, st) {
+  function setParkHud(u) {
     if (u === null || u === undefined || u < 0) {
       setText("current-park", "Base");
       setParkChip(null); setAccentColor(null);
-      setText("number-of-people", ""); setText("number-of-food-trucks", "");
       return;
     }
     setText("current-park", parkName(u));
     setParkChip(u);
     setAccentColor(u);
-    setText("number-of-people",      "👤 " + st.cu[u] + " customers");
-    setText("number-of-food-trucks", "🚚 " + st.n[u] + " other trucks");
   }
   function showRecentEarned(amount) {
     if (amount > 0) { setText("profit-gains", "+$" + amount); show($("profit-gains")); }
@@ -751,25 +783,30 @@ Qualtrics.SurveyEngine.addOnload(function () {
     if (btns) btns.innerHTML = "";
   }
 
-  function askThumbs(rec, next) {
+  function unlockIfReady(p) {
+    if (game.pending !== p || p.surprisePending || p.thumbsPending) return;
+    setParkButtonsDisabled(false);
+  }
+
+  function askThumbs(p) {
+    var rec = p.rec;
     var upBtn = $("tip-thumbs-up"), downBtn = $("tip-thumbs-down"), label = $("tip-rated-label");
-    hide($("surprise-box"));
     upBtn.classList.remove("rated", "chosen"); downBtn.classList.remove("rated", "chosen");
-    label.textContent = "Rate tip to continue";
+    label.textContent = "Rate this tip to continue";
     show($("tip-rating-buttons"));
-    var shownAt = Date.now(), done = false;
+    p.thumbsPending = true;
     function rate(rating) {
-      if (done) return;
-      done = true;
+      if (!p.thumbsPending || game.pending !== p) return;
+      p.thumbsPending = false;
       upBtn.classList.add("rated"); downBtn.classList.add("rated");
       (rating === "up" ? upBtn : downBtn).classList.add("chosen");
       label.textContent = "Got it. Thanks!";
-      rec.post_choice_thumbs = rating;
-      rec.rt_thumbs_ms = Date.now() - shownAt;
+      rec.tip_thumbs = rating;
+      rec.rt_thumbs_ms = Date.now() - p.tipShownAt;
       logEvent({ type: "tip_rating", t: Date.now(), decision_index: rec.decision_index, rating: rating, rt_ms: rec.rt_thumbs_ms });
       checkpointProgress("in_progress", "tip_rating");
       upBtn.onclick = null; downBtn.onclick = null;
-      next();
+      unlockIfReady(p);
     }
     upBtn.onclick = function () { rate("up"); };
     downBtn.onclick = function () { rate("down"); };
@@ -788,9 +825,10 @@ Qualtrics.SurveyEngine.addOnload(function () {
     p.tipShownAt = Date.now();
     logEvent({ type: "tip_shown", t: p.tipShownAt, decision_index: rec.decision_index, shown_rec: rec.shown_rec, text: text, surprise_asked: rec.surprise_asked });
 
+    setParkButtonsDisabled(true);
+    askThumbs(p);
     if (!rec.surprise_asked) return;
     p.surprisePending = true;
-    setParkButtonsDisabled(true);
     setText("surprise-question", SURPRISE_QUESTION);
     var wrap = $("surprise-buttons");
     wrap.innerHTML = "";
@@ -803,7 +841,7 @@ Qualtrics.SurveyEngine.addOnload(function () {
         b.classList.add("chosen");
         rec.surprise_rating = i + 1;
         rec.rt_surprise_ms = Date.now() - p.tipShownAt;
-        setParkButtonsDisabled(false);
+        unlockIfReady(p);
         logEvent({ type: "surprise_rated", t: Date.now(), decision_index: rec.decision_index, rating: i + 1, rt_ms: rec.rt_surprise_ms });
         checkpointProgress("in_progress", "surprise_rated");
       });
@@ -820,12 +858,12 @@ Qualtrics.SurveyEngine.addOnload(function () {
     var d = game.dayIndex, st = game.st;
     hide($("finish-button"));
     removeSummaryBox(); removeServingBox(); hideTipPanel();
-    hide($("expected-wrap")); hide($("profit-gains"));
+    hide($("expected-wrap")); hide($("park-stats")); hide($("profit-gains"));
     allParkButtons(show);
 
     setDayHud();
     setText("current-hour-display", String(st.h + 1));
-    setParkHud(st.park, st);
+    setParkHud(st.park);
     $("map-header").textContent = st.h === 0 ? "Choose where to start today" : "Choose your next stop";
 
     var inf       = FT.info(st, game.parent);
@@ -888,12 +926,12 @@ Qualtrics.SurveyEngine.addOnload(function () {
       surprise_rating: null,
       action: null, followed: null, chose_optimal: null, chose_myopic: null, shortfall: null,
       earned: null, moved: null, surge_outcome: null, surge_draw: null, news_shown: null,
-      post_choice_thumbs: null,
-      rt_choice_ms: null, rt_after_tip_ms: null, rt_surprise_ms: null, rt_thumbs_ms: null, rt_continue_ms: null,
+      tip_thumbs: null,
+      rt_choice_ms: null, rt_after_tip_ms: null, rt_surprise_ms: null, rt_thumbs_ms: null, rt_arrival_ms: null, rt_continue_ms: null,
       t: null
     };
 
-    var p = { rec: rec, inf: inf, shownAt: Date.now(), tipShownAt: null, surprisePending: false };
+    var p = { rec: rec, inf: inf, shownAt: Date.now(), tipShownAt: null, surprisePending: false, thumbsPending: false };
     rec.t = p.shownAt;
     game.pending = p;
     game.busy = false;
@@ -907,7 +945,7 @@ Qualtrics.SurveyEngine.addOnload(function () {
   // =========================================================
   function onParkChoice(slot) {
     var p = game.pending;
-    if (!p || game.busy || p.surprisePending) return;
+    if (!p || game.busy || p.surprisePending || p.thumbsPending) return;
     var u = parkAtSlot(slot);
     if (p.inf.feasible.indexOf(u) === -1) return;
     game.busy = true;
@@ -938,65 +976,145 @@ Qualtrics.SurveyEngine.addOnload(function () {
     logEvent({ type: "choose_park", t: now, decision_index: rec.decision_index, action: u, display_slot: slotOf(u) });
     checkpointProgress("in_progress", "choose_park");
 
+    hideTipPanel();
     allParkButtons(hide);
-    function serve() {
-      hideTipPanel();
-      runServing(st, u, earned, function () { afterServing(st, u, earned, res, rec); });
-    }
-    if (rec.shown_rec !== null) {
-      $("map-header").textContent = "You chose " + parkLabel(u) + ". How was the advisor's suggestion?";
-      askThumbs(rec, serve);
-    } else {
-      serve();
-    }
+    showArrival(st, u, function (rt) {
+      rec.rt_arrival_ms = rt;
+      checkpointProgress("in_progress", "arrival");
+      runServing(st, u, earned, rec.decision_index, function () { afterServing(st, u, earned, res, rec); });
+    });
+  }
+
+  function showArrival(st, u, next) {
+    removeSummaryBox(); removeServingBox();
+    $("map-header").textContent = (st.park === u ? "Staying at " : "Heading to ") + parkLabel(u) + "...";
+    setParkHud(u);
+    var node = el("div", { className: "arrival-wrap" });
+    append(node,
+      el("p", { className: "arrival-title", text: parkLabel(u) }),
+      el("p", { className: "arrival-stat", text: "👤 " + st.cu[u] + " customers" }),
+      el("p", { className: "arrival-stat", text: "🚚 " + st.n[u] + " other trucks" })
+    );
+    showRoundSummary([], "Start serving", next, { node: node });
   }
 
   // =========================================================
   // SERVING
   // =========================================================
-  function runServing(st, u, earned, done) {
+  // Order-matching mini-game. Earnings are fixed before serving starts; the game only
+  // splits `earned` across the customers in line. Mistakes and speed change nothing.
+  var FOODS      = ["🌮", "🍔", "🥤", "🍟", "🌭"];
+  var FOOD_NAMES = ["Taco", "Burger", "Drink", "Fries", "Hot Dog"];
+
+  function runServing(st, u, earned, decisionIndex, done) {
     var vis = FT.servingVisual(st, u);
+    var n   = vis.queueIcons;
     removeSummaryBox(); removeServingBox();
-    $("map-header").textContent = (st.park === u ? "Staying at " : "Heading to ") + parkLabel(u) + "...";
-    setParkHud(u, st);
     setText("expected-pill", "EST. $" + earned);
     show($("expected-wrap"));
+    setText("park-stats", "👤 " + st.cu[u] + " customers, 🚚 " + st.n[u] + " other trucks");
+    show($("park-stats"));
 
-    var box    = el("div", { id: "serving-box" });
-    var status = el("div", { className: "serving-status" });
-    var queue  = el("div", { className: "serving-row" });
-    var trucks = el("div", { className: "serving-row" });
-    var coins  = el("div", { className: "serving-coins", text: "$0" });
-    queue.appendChild(el("span", { className: "serving-row-label", text: "Your line" }));
-    for (var i = 0; i < vis.queueIcons; i++) queue.appendChild(el("span", { className: "serving-icon", text: "\uD83D\uDC64" }));
-    if (vis.lineOutTheDoor) queue.appendChild(el("span", { className: "serving-badge", text: "Line out the door!" }));
-    trucks.appendChild(el("span", { className: "serving-row-label", text: "Other trucks here" }));
-    for (var j = 0; j < vis.competitorTrucks; j++) trucks.appendChild(el("span", { className: "serving-icon", text: "\uD83D\uDE9A" }));
-    append(box, status, queue, trucks, coins);
+    // UI-only stream: never touches surge/advisor/surprise draws
+    var rng = FT.makeRNG(FT.hashString(game.seed + "|serve|" + game.dayIndex + "|" + st.h));
+    var orders = [], shares = [], base = Math.floor(earned / n), rem = earned - base * n, i;
+    for (i = 0; i < n; i++) {
+      orders.push(Math.floor(rng() * FOODS.length));
+      shares.push(base + (i < rem ? 1 : 0));
+    }
+
+    var box      = el("div", { id: "serving-box" });
+    var status   = el("div", { className: "serving-status" });
+    var queue    = el("div", { className: "serve-queue" });
+    var msg      = el("div", { className: "serve-msg" });
+    var counter  = el("div", { className: "serve-counter" });
+    var progress = el("div", { className: "serve-progress" });
+    var coins    = el("div", { className: "serving-coins", text: "$0" });
+    append(box, status);
+    if (vis.lineOutTheDoor) box.appendChild(el("div", { className: "serve-badge", text: "Line out the door!" }));
+    append(box, queue, msg, counter, progress, coins);
     $("map-inner").appendChild(box);
 
-    var serveMs = Math.max(1, vis.totalMs - vis.setupMs);
-    function startServing() {
-      status.textContent = "Serving customers...";
-      var serveStart = Date.now();
-      var tick = setInterval(function () {
-        var frac = Math.min(1, (Date.now() - serveStart) / serveMs);
-        coins.textContent = "$" + Math.round(earned * frac);
-      }, 50);
-      timers.push(tick);
+    var foodButtons = FOODS.map(function (f, k) {
+      var b = el("button", { className: "serve-food" });
+      append(b, el("span", { className: "serve-food-icon", text: f }), el("span", { className: "serve-food-name", text: FOOD_NAMES[k] }));
+      b.disabled = true;
+      b.addEventListener("click", function () { tap(k); });
+      counter.appendChild(b);
+      return b;
+    });
+
+    var served = 0, mistakes = 0, coinsSoFar = 0, ready = false, serveStart = null;
+    var front = null;
+
+    function renderQueue() {
+      queue.innerHTML = "";
+      front = null;
+      for (var j = served; j < n; j++) {
+        if (j === served) {
+          front = el("div", { className: "serve-cust serve-front" });
+          append(front, el("span", { className: "serve-bubble", text: FOODS[orders[j]] }), el("span", { text: "🧍" }));
+          queue.appendChild(front);
+        } else {
+          queue.appendChild(el("div", { className: "serve-cust", text: "🧍" }));
+        }
+      }
+      if (served >= n) queue.appendChild(el("div", { className: "serve-done", text: "👍" }));
+      progress.textContent = "Served " + served + " / " + n;
     }
+
+    function setButtons(enabled) { foodButtons.forEach(function (b) { b.disabled = !enabled; }); }
+
+    function tap(k) {
+      if (!ready || !box.parentNode) return;
+      if (k !== orders[served]) {
+        mistakes++;
+        msg.className = "serve-msg serve-bad";
+        msg.textContent = "Oops, they wanted " + FOODS[orders[served]];
+        if (front) {
+          front.classList.remove("serve-shake");
+          void front.offsetWidth; // restart the animation
+          front.classList.add("serve-shake");
+        }
+        return;
+      }
+      ready = false;
+      coinsSoFar += shares[served];
+      served++;
+      coins.textContent = "$" + coinsSoFar;
+      msg.className = "serve-msg serve-good";
+      msg.textContent = "+$" + shares[served - 1];
+      if (front) front.classList.add("serve-leave");
+      later(150, function () {
+        renderQueue();
+        if (served >= n) finish();
+        else ready = true;
+      });
+    }
+
+    function finish() {
+      setButtons(false);
+      status.textContent = "Done serving!";
+      coins.textContent = "$" + earned;
+      logEvent({ type: "serve_game", t: Date.now(), decision_index: decisionIndex, customers: n, mistakes: mistakes, serve_ms: Date.now() - serveStart });
+      later(500, function () { clearTimers(); done(); });
+    }
+
+    function startServing() {
+      status.textContent = "Serve each customer!";
+      setButtons(true);
+      serveStart = Date.now();
+      ready = true;
+    }
+
+    renderQueue();
     if (vis.setupMs > 0) {
       status.textContent = "Setting up...";
-      later(vis.setupMs, startServing);
+      queue.classList.add("serve-waiting");
+      later(vis.setupMs, function () { queue.classList.remove("serve-waiting"); startServing(); });
     } else {
       startServing();
     }
-    later(vis.totalMs, function () {
-      clearTimers();
-      status.textContent = "Done serving!";
-      coins.textContent = "$" + earned;
-      done();
-    });
   }
 
   // =========================================================
@@ -1027,7 +1145,7 @@ Qualtrics.SurveyEngine.addOnload(function () {
   // =========================================================
   function afterServing(st, u, earned, res, rec) {
     var lastHour = st.h >= CONFIG.NUM_HOURS - 1;
-    hide($("expected-wrap"));
+    hide($("expected-wrap")); hide($("park-stats"));
     setProfitHud();
     showRecentEarned(earned);
 
@@ -1038,27 +1156,49 @@ Qualtrics.SurveyEngine.addOnload(function () {
       lines.push(news);
     }
 
+    game.dayHours.push({ hour: st.h + 1, park: u, earned: earned, moved: st.park >= 0 && u !== st.park });
     game.parent = { st: st, a: u };
     game.st = res.next;
 
     rec.news_shown = news !== null;
     checkpointProgress("in_progress", "hour_complete");
 
-    if (lastHour) { endOfDay(lines); return; }
-    showRoundSummary(lines, "Choose Next Stop", function (rt) {
+    showRoundSummary(lines, lastHour ? "End " + CONFIG.DAY_LABELS[game.dayIndex] : "Choose Next Stop", function (rt) {
       rec.rt_continue_ms = rt;
-      showChoiceStage();
+      checkpointProgress("in_progress", "hour_continue");
+      if (lastHour) endOfDay();
+      else showChoiceStage();
     });
   }
 
-  function endOfDay(lines) {
+  function endOfDay() {
     var d = game.dayIndex;
     var isLastDay = d >= numDays() - 1;
     var askTrust = !!(CONFIG.TRUST_SLIDER_ON_ADVISOR_DAYS && CONFIG.ADVISOR_ON[d]);
-    lines[0] = lines[0] + (CONFIG.SCORED[d] ? " Day complete." : " Practice day complete.");
+    removeServingBox();
     $("map-header").textContent = CONFIG.DAY_LABELS[d] + " complete";
 
-    var extra = null, trustValue = null, trustMovedAt = null;
+    var summary = el("div", { className: "day-summary" });
+    var list = el("div", { className: "day-list" });
+    game.dayHours.forEach(function (hr) {
+      var amount = el("span", { className: "day-amount", text: "$" + hr.earned });
+      var row = el("div", { className: "day-row" });
+      append(row,
+        el("span", { className: "day-hour", text: "Hour " + hr.hour }),
+        el("span", { className: "day-park", text: parkLabel(hr.park) }),
+        amount
+      );
+      list.appendChild(row);
+    });
+    var total = el("div", { className: "day-total" });
+    append(total,
+      el("span", { text: CONFIG.SCORED[d] ? "Day total" : "Practice total (doesn't count)" }),
+      el("span", { text: "$" + game.dayEarned })
+    );
+    append(summary, list, total);
+    var extra = { node: summary, disabled: askTrust };
+
+    var trustValue = null, trustMovedAt = null;
     if (askTrust) {
       var wrap   = el("div", { className: "trust-wrap" });
       var qText  = el("p", { className: "summary-text", text: TRUST_QUESTION });
@@ -1066,7 +1206,7 @@ Qualtrics.SurveyEngine.addOnload(function () {
       slider.type = "range"; slider.min = "0"; slider.max = "100"; slider.step = "1"; slider.value = "50";
       var valEl  = el("div", { className: "trust-value", text: "Move the slider to answer" });
       append(wrap, qText, slider, valEl);
-      extra = { node: wrap, disabled: true };
+      summary.appendChild(wrap);
       slider.addEventListener("input", function () {
         trustValue = parseInt(slider.value, 10);
         trustMovedAt = Date.now();
@@ -1077,10 +1217,11 @@ Qualtrics.SurveyEngine.addOnload(function () {
     }
 
     var buttonText = isLastDay ? "Finish" : "Start " + CONFIG.DAY_LABELS[d + 1];
-    showRoundSummary(lines, buttonText, function (rt, shownAt) {
+    showRoundSummary([], buttonText, function (rt, shownAt) {
       logEvent({
         type: "day_end", t: Date.now(), day_index: d, day_label: CONFIG.DAY_LABELS[d],
         day_earned: game.dayEarned, total_profit: game.totalProfit, practice_profit: game.practiceProfit,
+        hours: game.dayHours.slice(),
         trust_slider: askTrust ? trustValue : null,
         rt_trust_ms: (askTrust && trustMovedAt) ? (trustMovedAt - shownAt) : null,
         rt_continue_ms: rt
@@ -1112,17 +1253,18 @@ Qualtrics.SurveyEngine.addOnload(function () {
     game.st = FT.startState(CONFIG.DAY_ORDER[d]);
     game.parent = null;
     game.dayEarned = 0;
+    game.dayHours = [];
     game.pending = null;
     game.busy = false;
     game.labelMap = FT.labelMap(game.seed, CONFIG.MIRROR_OF[d] !== null ? "mirror" : "main");
     FT.clearMemo();
 
     removeSummaryBox(); removeServingBox(); hideTipPanel();
-    hide($("finish-button")); hide($("expected-wrap")); hide($("profit-gains"));
+    hide($("finish-button")); hide($("expected-wrap")); hide($("park-stats")); hide($("profit-gains"));
     setDayHud();
     setProfitHud();
     setText("current-hour-display", "1");
-    setParkHud(null, game.st);
+    setParkHud(null);
 
     logEvent({
       type: "day_start", t: Date.now(), day_index: d, day_label: CONFIG.DAY_LABELS[d],
@@ -1153,6 +1295,7 @@ Qualtrics.SurveyEngine.addOnload(function () {
     logEvent({ type: "session_complete", t: Date.now(), total_profit: game.totalProfit, session_duration_ms: Date.now() - game.sessionStartTs });
     setED("foodtruck_total_profit", String(game.totalProfit));
     checkpointProgress("completed", "final");
+    releaseFullScreen();
     q.clickNextButton();
   }
 
@@ -1231,6 +1374,7 @@ Qualtrics.SurveyEngine.addOnload(function () {
     startDay(0);
 
   } catch (e) {
+    releaseFullScreen();
     root.innerHTML = "<p><b>Food truck game failed to start:</b> " + (e && e.message ? e.message : String(e)) + "</p>";
     q.showNextButton();
   }

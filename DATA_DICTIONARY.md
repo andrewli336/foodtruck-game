@@ -237,10 +237,11 @@ Decision record:
 | `advisor_on` | bool | `CONFIG.ADVISOR_ON[day_index]`; true on Days 3-6 |
 | `surprise_asked` | bool | Whether the surprise question was shown this hour (only possible when a tip was shown) |
 | `surprise_draw` | float\|null | Uniform draw deciding `surprise_asked` (`< ELICIT_SURPRISE_PROB`). Seeded: `makeRNG(hashString(seed + "\|surprise\|" + day_index + "\|" + h))()` |
-| `post_choice_thumbs` | `"up"`/`"down"`/null | Thumbs rating of the tip, asked after the park click and before serving; only when a tip was shown |
-| `rt_thumbs_ms` | int\|null | From thumbs prompt shown to rating |
+| `tip_thumbs` | `"up"`/`"down"`/null | Thumbs rating of the tip, asked on the advice screen **before** the choice (replaces `post_choice_thumbs`). Required: parks stay locked until it is answered (and the surprise question, when asked). Only when a tip was shown |
+| `rt_thumbs_ms` | int\|null | From tip shown to thumbs rating |
+| `rt_arrival_ms` | int | Time on the arrival panel (chosen park's customers and other trucks) until "Start serving" is clicked |
 | `news_shown` | bool | Whether the surprise-crowd news line was shown after this hour (surge happened and not the last hour) |
-| `rt_continue_ms` | int\|null | Time to click "Choose Next Stop" after the hour. Null on hour 5 (see `day_end.rt_continue_ms`) |
+| `rt_continue_ms` | int\|null | Time to click "Choose Next Stop" after the hour (on hour 5: "End Day N", which opens the separate day-summary screen; that screen's time is `day_end.rt_continue_ms`) |
 | `t` | int | Timestamp when the choice screen was shown |
 
 The advisor's `rng` for `FT.advisorDecision` is `makeRNG(hashString(seed + "|advisor|" + day_index + "|" + h))`, a
@@ -260,7 +261,8 @@ Events (§2 types not used in v2.1: memory, stuck/forced-stay, `round_complete`,
 | `surprise_rated` | Surprise question answered | `decision_index`, `rating` (1-4), `rt_ms` |
 | `choose_park` | Park clicked | `decision_index`, `action`, `display_slot` (on-screen position 0-2) |
 | `tip_rating` | Thumbs answered | `decision_index`, `rating`, `rt_ms` |
-| `day_end` | End-of-day Continue clicked | `day_index`, `day_earned`, `total_profit`, `practice_profit`, `trust_slider`, `rt_trust_ms`, `rt_continue_ms` |
+| `serve_game` | Last customer served in the order-matching mini-game (UI only, no effect on earnings) | `decision_index`, `customers` (= `queueIcons`), `mistakes` (wrong food taps), `serve_ms` (first order shown to last customer served; excludes "Setting up...") |
+| `day_end` | End-of-day Continue clicked | `day_index`, `day_earned`, `total_profit`, `practice_profit`, `hours` (per hour: `hour`, `park`, `earned`, `moved`; the day summary lists hour, park and earned, but not `moved`), `trust_slider`, `rt_trust_ms`, `rt_continue_ms` |
 | `debug_jump` | Debug-mode day jump (Shift+0-8) | `from_day_index`, `to_day_index` |
 | `session_complete` | Finish clicked | `total_profit`, `session_duration_ms` |
 

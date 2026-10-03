@@ -60,13 +60,17 @@ Quick definition: **Q\*(state, park)** is expected earnings for the rest of the 
 
 **No memory game.** It was taking most of the session, and it made busy parks (longer sequences, more mistakes) quietly worse than the benchmark says they are. Nothing in the theory needs it.
 
-**Serving animation: same length every hour (1.8 sec).** I know it's tempting to make busy parks take longer, but time is a real cost to students. If good parks take longer, some people will avoid them just to finish faster, which is exactly the problem we had with the memory game. So we show busyness with the picture, not with time:
-- A line of customers whose length matches customers per truck (`queueIcons`, 1 to 12). If it's 8 or more, show a "Line out the door!" badge.
-- The other trucks at that park.
-- Coins ticking up to the hour's earnings.
-- If they moved, the first 0.7 sec says "Setting up..." and then serving starts. Same 1.8 sec total.
+**Serving: order-matching mini-game.** *(Update: this replaces the fixed 1.8-second serving animation. Park OK'd busier parks taking longer to serve.)* Each hour, the player serves a line of customers:
+- The line length is `queueIcons` (1 to 12, from customers per truck). If it's 8 or more, show a "Line out the door!" badge.
+- Each customer shows an order bubble (🌮 Taco / 🍔 Burger / 🥤 Drink / 🍟 Fries / 🌭 Hot Dog). The player taps the matching food button. A wrong tap shakes the customer and they stay until served correctly.
+- **Earnings are fixed before serving starts.** The hour's earnings are split across the customers, and the coins count up to exactly that amount. Speed and mistakes change nothing.
+- If they moved, it says "Setting up..." for 0.7 sec before the first order.
+- Orders come from a UI-only random stream (`seed|serve|day|hour`), so the engine's surge, advisor and surprise draws aren't affected.
+- Each hour logs a `serve_game` event (customers, mistakes, serve time).
 
-The engine gives you all of this through `FT.servingVisual(state, park)`.
+Under optimal play the line averages about 5 customers, so serving adds roughly 3-4 min across all 45 hours. The session should still fit in 25-30 min. Time it in the lab pilot.
+
+The engine gives you the line length and setup time through `FT.servingVisual(state, park)`.
 
 Days 7-8 are the same two days as Days 1-2 (same starting numbers, same surprise crowds), with park names/colors/positions reshuffled. That gives us a clean before/after comparison on identical problems.
 
@@ -213,3 +217,15 @@ Everything is in the `CONFIG` block at the top of `foodtruck_v2_1_engine.js`. Th
 - **Week 3:** freeze the config, record `CONFIG_HASH`, and we pre-register before class. After the freeze, nothing that changes what participants see or what gets logged changes without telling me first.
 
 Thanks! Message me anytime if something's unclear or you think a design choice is wrong. Much better to hear it now than after the class run.
+
+
+
+Notes
+- Interactive serving game
+- Daily summary
+- Thumbs up should be less awkward, before
+- More customers takes more time
+- Issue of different participants getting different luck
+- Qualtrics escape to expand the UI
+- Clearly show the number of customers/trucks before serving, panel?
+- 
